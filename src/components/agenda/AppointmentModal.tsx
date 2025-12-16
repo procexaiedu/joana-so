@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Agendamento, Clinica, Profissional, Paciente, TipoAgendamento } from "@/lib/types/database"
@@ -5,9 +7,20 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Loader2, Search, Check, AlertTriangle } from "lucide-react"
+import {
+    Loader2,
+    Search,
+    AlertTriangle,
+    User,
+    Building2,
+    Stethoscope,
+    Calendar,
+    Clock,
+    FileText
+} from "lucide-react"
 import { useAgendaAvailability } from "@/hooks/useAgendaAvailability"
 import { cn } from "@/lib/utils"
 
@@ -36,7 +49,6 @@ export function AppointmentModal({
     const [loading, setLoading] = useState(false)
     const [step, setStep] = useState<'form' | 'conflict_warning'>('form')
 
-    // Form State
     const [formData, setFormData] = useState({
         paciente_id: '',
         profissional_id: '',
@@ -48,13 +60,11 @@ export function AppointmentModal({
         observacoes: ''
     })
 
-    // Patient Search State
     const [patientSearch, setPatientSearch] = useState('')
     const [patients, setPatients] = useState<Paciente[]>([])
     const [searchingPatients, setSearchingPatients] = useState(false)
     const [selectedPatient, setSelectedPatient] = useState<Paciente | null>(null)
 
-    // Initial Data Effect
     useEffect(() => {
         if (open) {
             if (initialData) {
@@ -69,11 +79,8 @@ export function AppointmentModal({
                     duracao_minutos: initialData.duracao_minutos || 30,
                     observacoes: initialData.observacoes || ''
                 })
-                // Need to fetch patient name if editing? 
-                // Creating simplified flow: Assume creating new usually.
                 if (initialData.paciente) setSelectedPatient(initialData.paciente)
             } else {
-                // Reset defaults
                 setFormData({
                     paciente_id: '',
                     profissional_id: '',
@@ -90,7 +97,6 @@ export function AppointmentModal({
         }
     }, [open, initialData])
 
-    // Patient Search Helper
     useEffect(() => {
         const searchTimeout = setTimeout(async () => {
             if (patientSearch.length > 2) {
@@ -117,7 +123,6 @@ export function AppointmentModal({
         try {
             const dataHoraIso = `${formData.data}T${formData.hora}:00`
 
-            // 1. Check Availability (Unless Forcing)
             if (!force) {
                 const availableSlots = await checkAvailability(
                     formData.clinica_id,
@@ -126,21 +131,7 @@ export function AppointmentModal({
                     formData.duracao_minutos
                 )
 
-                // Simple exact match check. 
-                // The RPC returns STARTS.
-                // Note: The RPC returns valid slots. If our time is NOT in the list, logic implies it's busy/closed.
-                // However, the RPC generates slots based on a grid. User might pick 08:15 manually.
-                // The stricter check is "Is valid?".
-                // For "Soft Conflict", we assume if RPC returns slots, we check if our time is roughly there.
-                // BETTER: We trust the RPC logic. If user picks a time not in list -> Alert.
-
-                // Let's refine availability check logic:
-                // We just want to know if there is a conflict. 
-                // Re-using the logic from RPC inside JS is redundant.
-                // The RPC *returns free slots*. If we don't find our time, warn.
-                const timeStr = formData.hora + ":00" // HH:mm:ss
-                // Match HH:MM
-                const isAvailable = availableSlots.some(s => s.startsWith(formData.hora)) // approximate
+                const isAvailable = availableSlots.some(s => s.startsWith(formData.hora))
 
                 if (!isAvailable) {
                     setStep('conflict_warning')
@@ -149,7 +140,6 @@ export function AppointmentModal({
                 }
             }
 
-            // 2. Save
             const payload = {
                 paciente_id: formData.paciente_id,
                 profissional_id: formData.profissional_id,
@@ -184,36 +174,68 @@ export function AppointmentModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{initialData?.id ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
-                    <DialogDescription>
-                        {step === 'form' ? 'Preencha os dados do agendamento' : 'Atenção: Conflito detectado'}
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0">
+                {/* Header with gradient */}
+                <div className="relative px-6 pt-6 pb-4 border-b border-border/50">
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-violet-500/5" />
+                    <DialogHeader className="relative">
+                        <DialogTitle className="flex items-center gap-3 text-xl">
+                            <div className={cn(
+                                "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg",
+                                step === 'form'
+                                    ? "bg-gradient-to-br from-primary to-primary/80 shadow-primary/30"
+                                    : "bg-gradient-to-br from-amber-500 to-amber-600 shadow-amber-500/30"
+                            )}>
+                                {step === 'form'
+                                    ? <Calendar className="h-5 w-5 text-white" />
+                                    : <AlertTriangle className="h-5 w-5 text-white" />
+                                }
+                            </div>
+                            <div>
+                                <span className="block">
+                                    {step === 'form'
+                                        ? (initialData?.id ? 'Editar Agendamento' : 'Novo Agendamento')
+                                        : 'Conflito Detectado'
+                                    }
+                                </span>
+                                <span className="text-xs font-normal text-muted-foreground">
+                                    {step === 'form'
+                                        ? 'Preencha os dados abaixo'
+                                        : 'Horário potencialmente indisponível'
+                                    }
+                                </span>
+                            </div>
+                        </DialogTitle>
+                    </DialogHeader>
+                </div>
 
                 {step === 'form' ? (
-                    <div className="space-y-4 py-4">
+                    <div className="p-6 space-y-5">
                         {/* Patient Search */}
                         <div className="space-y-2">
-                            <Label>Paciente</Label>
+                            <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                <User className="h-3.5 w-3.5" />
+                                Paciente *
+                            </Label>
                             {!selectedPatient ? (
                                 <div className="relative">
-                                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input
-                                        placeholder="Buscar paciente..."
-                                        className="pl-8"
+                                        placeholder="Digite o nome do paciente..."
+                                        className="pl-10 bg-muted/30 border-border/50 focus:border-primary"
                                         value={patientSearch}
                                         onChange={(e) => setPatientSearch(e.target.value)}
                                     />
-                                    {searchingPatients && <div className="absolute right-2 top-2.5"><Loader2 className="h-4 w-4 animate-spin" /></div>}
+                                    {searchingPatients && (
+                                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                                    )}
 
                                     {patients.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-md shadow-md mt-1 max-h-[200px] overflow-auto">
+                                        <div className="absolute top-full left-0 right-0 z-50 bg-popover border border-border/50 rounded-xl shadow-xl mt-2 overflow-hidden">
                                             {patients.map(p => (
                                                 <div
                                                     key={p.id}
-                                                    className="p-2 hover:bg-muted cursor-pointer text-sm"
+                                                    className="flex items-center gap-3 p-3 hover:bg-primary/5 cursor-pointer transition-colors border-b border-border/30 last:border-b-0"
                                                     onClick={() => {
                                                         setSelectedPatient(p)
                                                         setFormData({ ...formData, paciente_id: p.id })
@@ -221,16 +243,31 @@ export function AppointmentModal({
                                                         setPatientSearch('')
                                                     }}
                                                 >
-                                                    {p.nome}
+                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                                                        <User className="h-4 w-4 text-primary" />
+                                                    </div>
+                                                    <span className="font-medium text-sm">{p.nome}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-between p-2 border rounded-md bg-muted/20">
-                                    <span className="font-medium text-sm">{selectedPatient.nome}</span>
-                                    <Button variant="ghost" size="sm" onClick={() => setSelectedPatient(null)}>Trocar</Button>
+                                <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-bold text-sm">
+                                            {selectedPatient.nome.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                        </div>
+                                        <span className="font-semibold">{selectedPatient.nome}</span>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSelectedPatient(null)}
+                                        className="text-muted-foreground hover:text-foreground"
+                                    >
+                                        Trocar
+                                    </Button>
                                 </div>
                             )}
                         </div>
@@ -238,26 +275,52 @@ export function AppointmentModal({
                         {/* Clinic & Professional */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Clínica</Label>
+                                <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <Building2 className="h-3.5 w-3.5" />
+                                    Clínica *
+                                </Label>
                                 <Select
                                     value={formData.clinica_id}
                                     onValueChange={(v) => setFormData({ ...formData, clinica_id: v })}
                                 >
-                                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                    <SelectTrigger className="bg-muted/30 border-border/50">
+                                        <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
                                     <SelectContent>
-                                        {clinicas.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                                        {clinicas.map(c => (
+                                            <SelectItem key={c.id} value={c.id}>
+                                                <span className="flex items-center gap-2">
+                                                    <Building2 className="h-3.5 w-3.5 text-violet-500" />
+                                                    {c.nome}
+                                                </span>
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label>Profissional</Label>
+                                <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <Stethoscope className="h-3.5 w-3.5" />
+                                    Profissional *
+                                </Label>
                                 <Select
                                     value={formData.profissional_id}
                                     onValueChange={(v) => setFormData({ ...formData, profissional_id: v })}
                                 >
-                                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                    <SelectTrigger className="bg-muted/30 border-border/50">
+                                        <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
                                     <SelectContent>
-                                        {profissionais.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                                        {profissionais.map(p => (
+                                            <SelectItem key={p.id} value={p.id}>
+                                                <span className="flex items-center gap-2">
+                                                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px] text-emerald-600 font-bold">
+                                                        {p.nome.charAt(0)}
+                                                    </div>
+                                                    {p.nome}
+                                                </span>
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -266,7 +329,9 @@ export function AppointmentModal({
                         {/* Type & Duration */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Tipo de Agendamento</Label>
+                                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                                    Tipo de Atendimento
+                                </Label>
                                 <Select
                                     value={formData.tipo_id}
                                     onValueChange={(v) => {
@@ -278,91 +343,139 @@ export function AppointmentModal({
                                         })
                                     }}
                                 >
-                                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                                    <SelectTrigger className="bg-muted/30 border-border/50">
+                                        <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
                                     <SelectContent>
-                                        {tipos.map(t => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+                                        {tipos.map(t => (
+                                            <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label>Duração (min)</Label>
+                                <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    Duração
+                                </Label>
                                 <Select
                                     value={formData.duracao_minutos.toString()}
                                     onValueChange={(v) => setFormData({ ...formData, duracao_minutos: parseInt(v) })}
                                 >
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="bg-muted/30 border-border/50">
+                                        <SelectValue />
+                                    </SelectTrigger>
                                     <SelectContent>
                                         {[15, 30, 45, 60, 90, 120].map(m => (
-                                            <SelectItem key={m} value={m.toString()}>{m} min</SelectItem>
+                                            <SelectItem key={m} value={m.toString()}>{m} minutos</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
+
                         {/* Date & Time */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Data</Label>
+                                <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <Calendar className="h-3.5 w-3.5" />
+                                    Data *
+                                </Label>
                                 <Input
                                     type="date"
                                     value={formData.data}
                                     onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+                                    className="bg-muted/30 border-border/50"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Hora</Label>
+                                <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    Horário *
+                                </Label>
                                 <Input
                                     type="time"
                                     value={formData.hora}
                                     onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
+                                    className="bg-muted/30 border-border/50"
                                 />
                             </div>
                         </div>
 
+                        {/* Notes */}
                         <div className="space-y-2">
-                            <Label>Observações</Label>
-                            <Input
+                            <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                <FileText className="h-3.5 w-3.5" />
+                                Observações
+                            </Label>
+                            <Textarea
                                 value={formData.observacoes}
                                 onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                                placeholder="Anotações adicionais..."
+                                rows={2}
+                                className="bg-muted/30 border-border/50 resize-none"
                             />
                         </div>
                     </div>
                 ) : (
-                    <div className="py-6 text-center space-y-4">
-                        <div className="flex justify-center">
-                            <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">
-                                <AlertTriangle className="h-6 w-6 text-yellow-600" />
-                            </div>
+                    <div className="p-8 text-center space-y-6">
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center mx-auto">
+                            <AlertTriangle className="h-10 w-10 text-amber-500" />
                         </div>
                         <div>
-                            <h3 className="font-semibold text-lg">Conflito Detectado</h3>
-                            <p className="text-sm text-muted-foreground mt-2">
-                                O horário selecionado não está disponível na agenda (ou existe conflito com outra clínica).
+                            <h3 className="font-bold text-xl">Horário Indisponível</h3>
+                            <p className="text-muted-foreground mt-3 leading-relaxed">
+                                O horário selecionado pode estar ocupado ou fora do expediente.
+                                Deseja forçar o agendamento mesmo assim?
                             </p>
-                            <p className="text-sm font-medium mt-2">Deseja forçar o agendamento mesmo assim?</p>
+                        </div>
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-sm text-amber-200">
+                            ⚠️ Forçar o agendamento pode causar conflitos na agenda
                         </div>
                     </div>
                 )}
 
-                <DialogFooter>
+                {/* Footer */}
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/20">
                     {step === 'form' ? (
                         <>
-                            <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                            <Button onClick={() => handleSave(false)} disabled={loading}>
+                            <Button
+                                variant="ghost"
+                                onClick={() => onOpenChange(false)}
+                                className="text-muted-foreground"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={() => handleSave(false)}
+                                disabled={loading}
+                                className="bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20"
+                            >
                                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                Salvar
+                                {initialData?.id ? 'Salvar Alterações' : 'Criar Agendamento'}
                             </Button>
                         </>
                     ) : (
                         <>
-                            <Button variant="ghost" onClick={() => setStep('form')}>Voltar</Button>
-                            <Button variant="destructive" onClick={() => handleSave(true)} disabled={loading}>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setStep('form')}
+                                className="text-muted-foreground"
+                            >
+                                Voltar
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={() => handleSave(true)}
+                                disabled={loading}
+                                className="shadow-lg shadow-destructive/20"
+                            >
                                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                                 Forçar Agendamento
                             </Button>
                         </>
                     )}
-                </DialogFooter>
+                </div>
             </DialogContent>
         </Dialog>
     )

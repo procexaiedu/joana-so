@@ -1,7 +1,11 @@
+'use client'
+
 import { Agendamento, Profissional, HorarioFuncionamento } from "@/lib/types/database"
 import { cn } from "@/lib/utils"
 import { format, addDays, startOfWeek, isSameDay, parseISO, getHours, getMinutes } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { useEffect, useState } from "react"
+import { Clock, MapPin, User } from "lucide-react"
 
 interface WeekViewProps {
     currentDate: Date
@@ -27,10 +31,17 @@ export function WeekView({
     onAppointmentClick
 }: WeekViewProps) {
 
-    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 }) // Sunday start
-    const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    const [currentTime, setCurrentTime] = useState(new Date())
 
-    // Filter appointments by professional if selected
+    useEffect(() => {
+        const interval = setInterval(() => setCurrentTime(new Date()), 60000)
+        return () => clearInterval(interval)
+    }, [])
+
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
+    const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    const today = new Date()
+
     const filteredAppointments = selectedProfissionalId === 'all'
         ? agendamentos
         : agendamentos.filter(a => a.profissional_id === selectedProfissionalId)
@@ -46,21 +57,32 @@ export function WeekView({
         return (duration / TOTAL_MINUTES) * 100
     }
 
+    const getCurrentTimePosition = () => {
+        const minutes = getHours(currentTime) * 60 + getMinutes(currentTime)
+        const startMinutes = START_HOUR * 60
+        return ((minutes - startMinutes) / TOTAL_MINUTES) * 100
+    }
+
     const timeLabels = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => i + START_HOUR)
 
     return (
-        <div className="flex h-[calc(100vh-240px)] border rounded-xl overflow-hidden bg-card text-card-foreground">
+        <div className="flex h-[calc(100vh-240px)] border border-border/50 rounded-2xl overflow-hidden bg-gradient-to-b from-card to-card/95 shadow-xl">
             {/* Time Axis */}
-            <div className="w-16 flex-shrink-0 border-r bg-muted/20 overflow-y-auto hide-scrollbar">
-                <div className="h-10 border-b bg-muted/40 sticky top-0 z-10" />
+            <div className="w-20 flex-shrink-0 border-r border-border/30 overflow-y-auto hide-scrollbar bg-muted/10">
+                <div className="h-20 border-b border-border/30 sticky top-0 z-20 bg-gradient-to-b from-muted/40 to-muted/20 backdrop-blur-sm" />
                 <div className="relative h-[1200px]">
-                    {timeLabels.map(hour => (
+                    {timeLabels.map((hour) => (
                         <div
                             key={hour}
-                            className="absolute w-full text-center text-xs text-muted-foreground border-b border-dashed border-muted/50"
+                            className="absolute w-full flex items-start justify-end pr-3 -translate-y-2"
                             style={{ top: `${((hour - START_HOUR) * 60 / TOTAL_MINUTES) * 100}%` }}
                         >
-                            <span className="-translate-y-1/2 block bg-card px-1 relative z-10">{hour}:00</span>
+                            <span className={cn(
+                                "text-xs font-medium tabular-nums",
+                                hour === 12 ? "text-amber-500" : "text-muted-foreground"
+                            )}>
+                                {hour.toString().padStart(2, '0')}:00
+                            </span>
                         </div>
                     ))}
                 </div>
@@ -69,93 +91,179 @@ export function WeekView({
             {/* Grid */}
             <div className="flex-1 overflow-x-auto overflow-y-auto relative">
                 <div className="flex min-w-full h-[1200px]">
-                    {days.map(day => (
-                        <div key={day.toISOString()} className="flex-1 min-w-[150px] border-r relative group">
-                            {/* Header */}
-                            <div className={cn(
-                                "h-10 border-b bg-muted/40 sticky top-0 z-10 flex flex-col items-center justify-center text-sm backdrop-blur-sm",
-                                isSameDay(day, new Date()) && "bg-blue-50/50 text-blue-700"
-                            )}>
-                                <span className="font-medium capitalize">{format(day, 'EEE', { locale: ptBR })}</span>
-                                <span className="text-xs text-muted-foreground">{format(day, 'd')}</span>
-                            </div>
+                    {days.map((day, dayIdx) => {
+                        const isToday = isSameDay(day, today)
+                        const isWeekend = dayIdx === 0 || dayIdx === 6
 
-                            {/* Grid Lines */}
-                            {timeLabels.map(hour => (
-                                <div
-                                    key={hour}
-                                    className="absolute w-full border-b border-dashed border-muted/30 pointer-events-none"
-                                    style={{ top: `${((hour - START_HOUR) * 60 / TOTAL_MINUTES) * 100}%` }}
-                                />
-                            ))}
-
-                            {/* Clickable Overlay */}
+                        return (
                             <div
-                                className="absolute inset-0 z-0"
-                                onClick={(e) => {
-                                    const percent = e.nativeEvent.offsetY / e.currentTarget.clientHeight
-                                    const totalClickedMinutes = percent * TOTAL_MINUTES
-                                    const hour = Math.floor(totalClickedMinutes / 60) + START_HOUR
-                                    const minute = Math.floor(totalClickedMinutes % 60)
-                                    const roundedMinute = Math.round(minute / 30) * 30
-                                    const timeStr = `${hour.toString().padStart(2, '0')}:${roundedMinute === 60 ? '00' : roundedMinute.toString().padStart(2, '0')}`
+                                key={day.toISOString()}
+                                className={cn(
+                                    "flex-1 min-w-[140px] relative",
+                                    dayIdx < 6 && "border-r border-border/20",
+                                    isWeekend && "bg-muted/5"
+                                )}
+                            >
+                                {/* Day Header */}
+                                <div className={cn(
+                                    "h-20 border-b border-border/30 sticky top-0 z-20 flex flex-col items-center justify-center backdrop-blur-sm transition-colors",
+                                    isToday
+                                        ? "bg-gradient-to-b from-primary/20 to-primary/10"
+                                        : "bg-gradient-to-b from-muted/40 to-muted/20"
+                                )}>
+                                    <span className={cn(
+                                        "text-xs font-medium uppercase tracking-wider",
+                                        isToday ? "text-primary" : "text-muted-foreground"
+                                    )}>
+                                        {format(day, 'EEEE', { locale: ptBR })}
+                                    </span>
+                                    <span className={cn(
+                                        "text-2xl font-bold mt-0.5",
+                                        isToday
+                                            ? "w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/30"
+                                            : "text-foreground"
+                                    )}>
+                                        {format(day, 'd')}
+                                    </span>
+                                </div>
 
-                                    onSlotClick(day, timeStr)
-                                }}
-                            />
+                                {/* Zebra + Grid Lines */}
+                                {timeLabels.map((hour, idx) => (
+                                    <div
+                                        key={hour}
+                                        className={cn(
+                                            "absolute w-full pointer-events-none",
+                                            idx % 2 === 0 ? "bg-white/[0.02]" : "bg-transparent"
+                                        )}
+                                        style={{
+                                            top: `${((hour - START_HOUR) * 60 / TOTAL_MINUTES) * 100}%`,
+                                            height: `${(60 / TOTAL_MINUTES) * 100}%`
+                                        }}
+                                    >
+                                        <div className="absolute top-0 left-0 right-0 border-t border-border/15" />
+                                        <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-border/10" />
+                                    </div>
+                                ))}
 
-                            {/* Appointments */}
-                            {filteredAppointments
-                                .filter(a => isSameDay(parseISO(a.data_hora), day))
-                                .map(appt => {
-                                    const isOtherClinic = appt.clinica_id !== selectedClinicaId
-                                    // If "All Pros" view, maybe show initials?
-                                    const proName = appt.profissional?.nome.split(' ')[0]
+                                {/* Current Time Indicator (only for today) */}
+                                {isToday && getCurrentTimePosition() >= 0 && getCurrentTimePosition() <= 100 && (
+                                    <div
+                                        className="absolute left-0 right-0 z-30 pointer-events-none flex items-center"
+                                        style={{ top: `${getCurrentTimePosition()}%` }}
+                                    >
+                                        <div className="w-3 h-3 rounded-full bg-red-500 -ml-1.5 shadow-lg shadow-red-500/50 animate-pulse" />
+                                        <div className="flex-1 h-0.5 bg-gradient-to-r from-red-500 to-red-500/0" />
+                                    </div>
+                                )}
 
-                                    return (
-                                        <div
-                                            key={appt.id}
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                onAppointmentClick(appt)
-                                            }}
-                                            className={cn(
-                                                "absolute left-1 right-1 rounded px-2 py-1 text-xs overflow-hidden cursor-pointer transition-all hover:brightness-95 border z-10",
-                                                isOtherClinic
-                                                    ? "bg-muted text-muted-foreground border-muted-foreground/20 opacity-70"
-                                                    : getStatusColor(appt.status) // need to duplicate or export function
-                                            )}
-                                            style={{
-                                                top: `${getPosition(appt.data_hora)}%`,
-                                                height: `${getHeight(appt.duracao_minutos)}%`
-                                            }}
-                                            title={`${format(parseISO(appt.data_hora), "HH:mm")} - ${appt.paciente?.nome}`}
-                                        >
-                                            <div className="font-semibold truncate">
-                                                {isOtherClinic ? "Outra Und." : appt.paciente?.nome}
+                                {/* Clickable Overlay */}
+                                <div
+                                    className="absolute inset-0 z-0 cursor-pointer"
+                                    style={{ top: '80px' }}
+                                    onClick={(e) => {
+                                        const rect = e.currentTarget.getBoundingClientRect()
+                                        const percent = (e.clientY - rect.top) / rect.height
+                                        const totalClickedMinutes = percent * TOTAL_MINUTES
+                                        const hour = Math.floor(totalClickedMinutes / 60) + START_HOUR
+                                        const minute = Math.floor(totalClickedMinutes % 60)
+                                        const roundedMinute = Math.round(minute / 30) * 30
+                                        const finalHour = roundedMinute === 60 ? hour + 1 : hour
+                                        const finalMinute = roundedMinute === 60 ? 0 : roundedMinute
+                                        const timeStr = `${finalHour.toString().padStart(2, '0')}:${finalMinute.toString().padStart(2, '0')}`
+                                        onSlotClick(day, timeStr)
+                                    }}
+                                />
+
+                                {/* Appointments */}
+                                {filteredAppointments
+                                    .filter(a => isSameDay(parseISO(a.data_hora), day))
+                                    .map(appt => {
+                                        const isOtherClinic = appt.clinica_id !== selectedClinicaId
+                                        const statusStyle = getStatusStyle(appt.status)
+                                        const proName = appt.profissional?.nome?.split(' ')[0]
+
+                                        return (
+                                            <div
+                                                key={appt.id}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onAppointmentClick(appt)
+                                                }}
+                                                className={cn(
+                                                    "absolute left-1 right-1 rounded-lg px-2 py-1 cursor-pointer transition-all duration-200 z-10",
+                                                    "hover:scale-[1.02] hover:shadow-lg hover:z-20",
+                                                    "border backdrop-blur-sm overflow-hidden",
+                                                    isOtherClinic
+                                                        ? "bg-muted/80 text-muted-foreground border-muted-foreground/20 opacity-60"
+                                                        : statusStyle.card
+                                                )}
+                                                style={{
+                                                    top: `${getPosition(appt.data_hora)}%`,
+                                                    height: `${Math.max(getHeight(appt.duracao_minutos), 2)}%`
+                                                }}
+                                                title={`${format(parseISO(appt.data_hora), "HH:mm")} - ${appt.paciente?.nome}`}
+                                            >
+                                                <div className="flex items-start gap-1 h-full">
+                                                    {!isOtherClinic && (
+                                                        <div className={cn("w-0.5 rounded-full h-full flex-shrink-0", statusStyle.indicator)} />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-semibold text-xs truncate">
+                                                            {isOtherClinic ? (
+                                                                <span className="flex items-center gap-1">
+                                                                    <MapPin className="h-3 w-3" />
+                                                                    Outra
+                                                                </span>
+                                                            ) : appt.paciente?.nome}
+                                                        </div>
+                                                        {!isOtherClinic && (
+                                                            <div className="flex items-center gap-1 text-[10px] opacity-75">
+                                                                <Clock className="h-2.5 w-2.5" />
+                                                                {format(parseISO(appt.data_hora), "HH:mm")}
+                                                                {selectedProfissionalId === 'all' && proName && (
+                                                                    <span className="flex items-center gap-0.5">
+                                                                        <User className="h-2.5 w-2.5" />
+                                                                        {proName}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="truncate opacity-80 text-[10px]">
-                                                {format(parseISO(appt.data_hora), "HH:mm")}
-                                                {selectedProfissionalId === 'all' && !isOtherClinic && ` • ${proName}`}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                        </div>
-                    ))}
+                                        )
+                                    })}
+                            </div>
+                        )
+                    })}
                 </div>
             </div>
         </div>
     )
 }
 
-function getStatusColor(status: string) {
-    switch (status) {
-        case 'confirmado': return "bg-emerald-100 text-emerald-800 border-emerald-200"
-        case 'agendado': return "bg-blue-100 text-blue-800 border-blue-200"
-        case 'em_andamento': return "bg-amber-100 text-amber-800 border-amber-200"
-        case 'cancelado': return "bg-red-100 text-red-800 border-red-200"
-        case 'concluido': return "bg-slate-100 text-slate-800 border-slate-200"
-        default: return "bg-gray-100 text-gray-800 border-gray-200"
+function getStatusStyle(status: string) {
+    const styles: Record<string, { card: string; indicator: string }> = {
+        confirmado: {
+            card: "bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-emerald-100 border-emerald-500/30",
+            indicator: "bg-emerald-400"
+        },
+        agendado: {
+            card: "bg-gradient-to-br from-blue-500/20 to-blue-600/10 text-blue-100 border-blue-500/30",
+            indicator: "bg-blue-400"
+        },
+        em_andamento: {
+            card: "bg-gradient-to-br from-amber-500/20 to-amber-600/10 text-amber-100 border-amber-500/30",
+            indicator: "bg-amber-400"
+        },
+        cancelado: {
+            card: "bg-gradient-to-br from-red-500/10 to-red-600/5 text-red-200 border-red-500/20 opacity-50",
+            indicator: "bg-red-400"
+        },
+        concluido: {
+            card: "bg-gradient-to-br from-slate-500/20 to-slate-600/10 text-slate-200 border-slate-500/30",
+            indicator: "bg-slate-400"
+        }
     }
+    return styles[status] || styles.agendado
 }
