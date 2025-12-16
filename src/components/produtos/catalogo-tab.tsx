@@ -58,6 +58,7 @@ const initialProdutoForm = {
     nome: '',
     descricao: '',
     categoria_id: '',
+    agenda_id: '',
     preco: '',
     dosagem_mg: '',
     duracao_minutos: '',
@@ -76,6 +77,7 @@ const initialCategoriaForm = {
 export function CatalogoTab({ className }: CatalogoTabProps) {
     const [produtos, setProdutos] = useState<Produto[]>([])
     const [categorias, setCategorias] = useState<Categoria[]>([])
+    const [agendas, setAgendas] = useState<{ id: string; nome: string }[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [categoriaFilter, setCategoriaFilter] = useState<string>('all')
@@ -92,9 +94,10 @@ export function CatalogoTab({ className }: CatalogoTabProps) {
     const supabase = createClient()
 
     const fetchData = useCallback(async () => {
-        const [produtosRes, categoriasRes] = await Promise.all([
-            supabase.from('produtos').select('*, categoria:categorias(*)').order('nome'),
-            supabase.from('categorias').select('*').order('ordem').order('nome')
+        const [produtosRes, categoriasRes, agendasRes] = await Promise.all([
+            supabase.from('produtos').select('*, categoria:categorias(*), agenda:agendas(*)').order('nome'),
+            supabase.from('categorias').select('*').order('ordem').order('nome'),
+            supabase.from('agendas').select('*').eq('ativo', true).order('nome')
         ])
 
         if (produtosRes.error) {
@@ -109,6 +112,13 @@ export function CatalogoTab({ className }: CatalogoTabProps) {
             console.error(categoriasRes.error)
         } else {
             setCategorias(categoriasRes.data || [])
+        }
+
+        if (agendasRes.error) {
+            toast.error('Erro ao carregar agendas')
+            console.error(agendasRes.error)
+        } else {
+            setAgendas(agendasRes.data || [])
         }
 
         setLoading(false)
@@ -145,6 +155,7 @@ export function CatalogoTab({ className }: CatalogoTabProps) {
                 nome: produto.nome,
                 descricao: produto.descricao || '',
                 categoria_id: produto.categoria_id || '',
+                agenda_id: (produto as any).agenda_id || '',
                 preco: produto.preco.toString(),
                 dosagem_mg: produto.dosagem_mg?.toString() || '',
                 duracao_minutos: produto.duracao_minutos?.toString() || '',
@@ -171,6 +182,7 @@ export function CatalogoTab({ className }: CatalogoTabProps) {
                 nome: produtoForm.nome,
                 descricao: produtoForm.descricao || null,
                 categoria_id: produtoForm.categoria_id || null,
+                agenda_id: produtoForm.agenda_id || null,
                 preco: parseFloat(produtoForm.preco),
                 dosagem_mg: produtoForm.dosagem_mg ? parseFloat(produtoForm.dosagem_mg) : null,
                 duracao_minutos: produtoForm.duracao_minutos ? parseInt(produtoForm.duracao_minutos) : null,
@@ -581,6 +593,28 @@ export function CatalogoTab({ className }: CatalogoTabProps) {
                                     placeholder="0.00"
                                 />
                             </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="agenda">Agenda (para IA)</Label>
+                            <Select
+                                value={produtoForm.agenda_id}
+                                onValueChange={(v) => setProdutoForm({ ...produtoForm, agenda_id: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione a agenda..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {agendas.map((agenda: { id: string; nome: string }) => (
+                                        <SelectItem key={agenda.id} value={agenda.id}>
+                                            {agenda.nome}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                Define em qual agenda a IA deve buscar disponibilidade para este produto.
+                            </p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
